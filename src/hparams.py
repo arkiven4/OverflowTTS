@@ -68,18 +68,18 @@ def create_hparams(generate_parameters=False):
         ################################
         # Data Parameters             #
         ################################
-        batch_size=28,
+        batch_size=4,
         load_mel_from_disk=False,
-        training_files="data/filelists/ljs_audio_text_train_filelist.txt",
-        validation_files="data/filelists/ljs_audio_text_val_filelist.txt",
+        training_files="filelists/paper2_train_filelist.txt",
+        validation_files="filelists/paper2_train_filelist.txt",
         text_cleaners=["english_cleaners", "universal_cleaners", "universal_cleaners", "japanese_cleaners"],
         phonetise=False,
         cmu_phonetiser=CMUDict("src/phonetised_files/cmudict-0.7b.txt"),
-        spk_embeds_path="/run/media/fourier/Data2/Pras/Thesis/Database/dataset_name/spk_embeds/",
-        emo_embeds_path="/run/media/fourier/Data2/Pras/Thesis/Database/dataset_name/emo_embeds/",
+        spk_embeds_path="/run/media/viblab/Markov2/Pras/Thesis/Database/dataset_name/spk_embeds/",
+        emo_embeds_path="/run/media/viblab/Markov2/Pras/Thesis/Database/dataset_name/emo_embeds/",
         database_name_index=8,
-        gin_channels=256,
-        emoin_channels=256,
+        gin_channels=128,
+        emoin_channels=128,
         lin_channels=4,
         num_workers=20,
         n_lang=10,
@@ -108,7 +108,7 @@ def create_hparams(generate_parameters=False):
         # Model Parameters             #
         ################################
         n_symbols=len(symbols),
-        symbols_embedding_dim=512,
+        symbols_embedding_dim=508,
         ################################
         # Encoder parameters           #
         ################################
@@ -132,7 +132,7 @@ def create_hparams(generate_parameters=False):
         ################################
         # Prenet parameters            #
         ################################
-        prenet_n_layers=2,
+        prenet_n_layers=3,
         prenet_dim=256,
         prenet_dropout=0.5,
         prenet_dropout_while_eval=True,
@@ -156,7 +156,6 @@ def create_hparams(generate_parameters=False):
         n_split=4,
         n_sqz=2,
         sigmoid_scale=False,
-        gin_channels=0,
         ################################
         # Optimization Hyperparameters #
         ################################

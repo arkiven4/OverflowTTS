@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     elements = {"Encoder": model.model.encoder, "HMM": model.model.hmm, "Decoder": model.model.decoder}
 
-    print(model.model.decoder)
+    #print(model.model.decoder)
 
     for element_name, element in elements.items():
         print(count_parameters(element, element_name))

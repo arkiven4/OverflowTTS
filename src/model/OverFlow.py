@@ -36,7 +36,7 @@ class OverFlow(nn.Module):
         self.emb_g = nn.Linear(512, hparams.gin_channels)
 
         print("Use Emo Embed Linear Norm")
-        self.emb_emo = nn.Linear(1024, hparams.gin_channels)
+        self.emb_emo = nn.Linear(1024, hparams.emoin_channels)
 
     def parse_batch(self, batch):
         """
@@ -67,17 +67,18 @@ class OverFlow(nn.Module):
         text_inputs, text_lengths, mels, max_len, mel_lengths, langs, speakers, emos = inputs
         text_lengths, mel_lengths = text_lengths.data, mel_lengths.data
 
-        l = self.emb_l(langs)
-        g = self.emb_g(speakers)
-        emo = self.emb_emo(emos)
+        l = self.emb_l(langs).unsqueeze(-1)
+        g = self.emb_g(speakers).unsqueeze(-1)
+        emo = self.emb_emo(emos).unsqueeze(-1)
         
-        embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
-        print(embedded_inputs.shape)
-        print(l.transpose(2, 1).expand(embedded_inputs.size(0), embedded_inputs.size(1), -1).shape)
-        embedded_inputs = torch.cat((embedded_inputs, l.transpose(2, 1).expand(embedded_inputs.size(0), embedded_inputs.size(1), -1)), dim=-1)
+        embedded_inputs = self.embedding(text_inputs).transpose(1, 2) # [28, 512, 65]
+        embedded_inputs = torch.cat((embedded_inputs, l.expand(embedded_inputs.size(0), -1, embedded_inputs.size(2))), dim=1)
         encoder_outputs, text_lengths = self.encoder(embedded_inputs, text_lengths)
 
-        encoder_outputs = torch.cat([encoder_outputs, g, emo], -1)
+        g_exp = g.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
+        emo_exp = emo.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
+        encoder_outputs = torch.cat([encoder_outputs, g_exp, emo_exp], -1)
+
         z, z_lengths, logdet = self.decoder(mels, mel_lengths, g=g, emo=emo)
         log_probs = self.hmm(encoder_outputs, text_lengths, z, z_lengths)
         loss = (log_probs + logdet) / (text_lengths.sum() + mel_lengths.sum())
@@ -104,16 +105,19 @@ class OverFlow(nn.Module):
         if text_lengths is None:
             text_lengths = text_inputs.new_tensor(text_inputs.shape[0])
 
-        l = self.emb_l(langs)
-        g = self.emb_g(speakers)
-        emo = self.emb_emo(emos)
+        l = self.emb_l(langs).unsqueeze(0).unsqueeze(-1)
+        g = self.emb_g(speakers).unsqueeze(0).unsqueeze(-1)
+        emo = self.emb_emo(emos).unsqueeze(0).unsqueeze(-1)
 
         text_inputs, text_lengths = text_inputs.unsqueeze(0), text_lengths.unsqueeze(0)
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
-        embedded_inputs = torch.cat((embedded_inputs, l.transpose(2, 1).expand(embedded_inputs.size(0), embedded_inputs.size(1), -1)), dim=-1)
+        embedded_inputs = torch.cat((embedded_inputs, l.expand(embedded_inputs.size(0), -1, embedded_inputs.size(2))), dim=1)
 
         encoder_outputs, text_lengths = self.encoder(embedded_inputs, text_lengths)
-        encoder_outputs = torch.cat([encoder_outputs, g, emo], -1)
+
+        g_exp = g.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
+        emo_exp = emo.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
+        encoder_outputs = torch.cat([encoder_outputs, g_exp, emo_exp], -1)
         
         (
             mel_latent,

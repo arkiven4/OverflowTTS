@@ -139,12 +139,12 @@ class TextMelLoader(Dataset):
         database_name = audiopath.split("/")[self.database_name_index]
 
         # This text is int tensor of the input representation
-        text = self.get_text(text)
+        text = self.get_text(text,lid)
         mel = self.get_mel(audiopath)
         lang = self.get_lid(lid)
 
         speaker = torch.Tensor(np.load(f"{self.spk_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
-        emo = torch.Tensor(np.load(f"{self.spk_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
+        emo = torch.Tensor(np.load(f"{self.emo_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
         
         if self.transform:
             for t in self.transform:
@@ -179,7 +179,7 @@ class TextMelLoader(Dataset):
         if self.phonetise:
             text = phonetise_text(self.cmu_phonetiser, text, word_tokenize)
 
-        text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners[lid]))
+        text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners[int(lid)]))
         return text_norm
 
     def get_lid(self, lid):
