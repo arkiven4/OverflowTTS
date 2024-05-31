@@ -50,11 +50,11 @@ def create_hparams(generate_parameters=False):
         # Experiment Parameters        #
         ################################
         run_name="OverFlow",
-        gpus=[0],
+        gpus=[0, 1],
         max_epochs=50000,
         val_check_interval=100,
         save_model_checkpoint=500,
-        gradient_checkpoint=True,
+        gradient_checkpoint=False,
         seed=1234,
         checkpoint_dir="checkpoints",
         tensorboard_log_dir="tb_logs",
@@ -72,10 +72,17 @@ def create_hparams(generate_parameters=False):
         load_mel_from_disk=False,
         training_files="data/filelists/ljs_audio_text_train_filelist.txt",
         validation_files="data/filelists/ljs_audio_text_val_filelist.txt",
-        text_cleaners=["english_cleaners"],
-        phonetise=True,
+        text_cleaners=["english_cleaners", "universal_cleaners", "universal_cleaners", "japanese_cleaners"],
+        phonetise=False,
         cmu_phonetiser=CMUDict("src/phonetised_files/cmudict-0.7b.txt"),
+        spk_embeds_path="/run/media/fourier/Data2/Pras/Thesis/Database/dataset_name/spk_embeds/",
+        emo_embeds_path="/run/media/fourier/Data2/Pras/Thesis/Database/dataset_name/emo_embeds/",
+        database_name_index=8,
+        gin_channels=256,
+        emoin_channels=256,
+        lin_channels=4,
         num_workers=20,
+        n_lang=10,
         ################################
         # Audio Parameters             #
         ################################

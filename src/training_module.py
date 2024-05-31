@@ -113,18 +113,18 @@ class TrainingModule(pl.LightningModule):
                 text_lengths,
                 mels,
                 max_len,
-                mel_lengths,
+                mel_lengths, langs, speakers, emos
             ) = self.get_an_element_of_validation_dataset()
             (
                 mel_output,
                 state_travelled,
                 input_parameters,
                 output_parameters,
-            ) = self.model.sample(text_inputs[0], text_lengths[0])
+            ) = self.model.sample(text_inputs[0], text_lengths[0], langs=langs[0], speakers=speakers[0], emos=emos[0])
             mel_output_normalised = self.model.normaliser(mel_output)
 
             with torch.no_grad():
-                _ = self.model((text_inputs, text_lengths, mels, max_len, mel_lengths))
+                _ = self.model((text_inputs, text_lengths, mels, max_len, mel_lengths, langs, speakers, emos))
 
             log_validation(
                 self.logger.experiment,
@@ -158,7 +158,7 @@ class TrainingModule(pl.LightningModule):
             mel_lengths (torch.LongTensor): The lengths of the mel spectrogram.
         """
         x, y = self.model.parse_batch(next(iter(self.val_dataloader())))
-        (text_inputs, text_lengths, mels, max_len, mel_lengths) = x
+        (text_inputs, text_lengths, mels, max_len, mel_lengths, langs, speakers, emos) = x
         text_inputs = text_inputs[0].unsqueeze(0).to(self.device)
         text_lengths = text_lengths[0].unsqueeze(0).to(self.device)
         mels = mels[0].unsqueeze(0).to(self.device)
@@ -169,10 +169,14 @@ class TrainingModule(pl.LightningModule):
         # This prevent the model to break down when plotting validation.
         mels = mels[:, :, : mel_lengths.item()]
 
-        return text_inputs, text_lengths, mels, max_len, mel_lengths
+        langs = langs[0].unsqueeze(0).to(self.device)
+        speakers = speakers[0].unsqueeze(0).to(self.device)
+        emos = emos[0].unsqueeze(0).to(self.device)
+
+        return text_inputs, text_lengths, mels, max_len, mel_lengths, langs, speakers, emos
 
     @torch.inference_mode()
-    def inference(self, text_inputs, sampling_temp=1.0):
+    def inference(self, text_inputs, langs, speakers, emos, sampling_temp=1.0):
         """
         Similar to sampling but returns only mel outputs and states travelled.
 
@@ -183,11 +187,11 @@ class TrainingModule(pl.LightningModule):
             torch.FloatTensor: mel outputs
             torch.IntTensor: states travelled
         """
-        mel_output, states_travelled, _, _ = self.sample(text_inputs, sampling_temp=sampling_temp)
+        mel_output, states_travelled, _, _ = self.sample(text_inputs, langs=langs, speakers=speakers, emos=emos, sampling_temp=sampling_temp)
         return mel_output, states_travelled
 
     @torch.inference_mode()
-    def sample(self, text_inputs, text_lengths=None, sampling_temp=1.0):
+    def sample(self, text_inputs, text_lengths=None, langs=None, speakers=None, emos=None, sampling_temp=1.0):
         """
         Samples from the model
 
@@ -201,7 +205,7 @@ class TrainingModule(pl.LightningModule):
             List[Tuple[torch.FloatTensor]]: input parameters
             List[Tuple[torch.FloatTensor]]: output parameters
         """
-        return self.model.sample(text_inputs, text_lengths, sampling_temp=sampling_temp)
+        return self.model.sample(text_inputs, text_lengths, langs=langs, speakers=speakers, emos=emos, sampling_temp=sampling_temp)
 
     def log_grad_norm(self, grad_norm_dict):
         r"""

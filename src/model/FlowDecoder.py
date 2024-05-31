@@ -22,13 +22,12 @@ class FlowSpecDecoder(nn.Module):
         self.n_sqz = hparams.n_sqz
         self.sigmoid_scale = hparams.sigmoid_scale
         self.gin_channels = hparams.gin_channels
+        self.emoin_channels = hparams.emoin_channels
 
         self.flows = nn.ModuleList()
         for b in range(hparams.n_blocks_dec):
             self.flows.append(flows.ActNorm(channels=hparams.n_mel_channels * hparams.n_sqz))
-            self.flows.append(
-                flows.InvConvNear(channels=hparams.n_mel_channels * hparams.n_sqz, n_split=hparams.n_split)
-            )
+            self.flows.append(flows.InvConvNear(channels=hparams.n_mel_channels * hparams.n_sqz, n_split=hparams.n_split))
             self.flows.append(
                 flows.CouplingBlock(
                     hparams.n_mel_channels * hparams.n_sqz,
@@ -37,12 +36,13 @@ class FlowSpecDecoder(nn.Module):
                     dilation_rate=hparams.dilation_rate,
                     n_layers=hparams.n_block_layers,
                     gin_channels=hparams.gin_channels,
+                    emoin_channels=hparams.emoin_channels,
                     p_dropout=hparams.p_dropout_dec,
                     sigmoid_scale=hparams.sigmoid_scale,
                 )
             )
 
-    def forward(self, x, x_lengths, g=None, reverse=False):
+    def forward(self, x, x_lengths, g=None, emo=None, reverse=False):
         """Calls Glow-TTS decoder
 
         Args:
@@ -73,12 +73,13 @@ class FlowSpecDecoder(nn.Module):
 
         if self.n_sqz > 1:
             x, x_mask = squeeze(x, x_mask, self.n_sqz)
+
         for f in flows:
             if not reverse:
-                x, logdet = f(x, x_mask, g=g, reverse=reverse)
+                x, logdet = f(x, x_mask, g=g, emo=emo, reverse=reverse)
                 logdet_tot += logdet
             else:
-                x, logdet = f(x, x_mask, g=g, reverse=reverse)
+                x, logdet = f(x, x_mask, g=g, emo=emo, reverse=reverse)
         if self.n_sqz > 1:
             x, x_mask = unsqueeze(x, x_mask, self.n_sqz)
         return x, x_lengths, logdet_tot

@@ -30,7 +30,7 @@ def load_wav_to_torch(full_path):
 
 def load_filepaths_and_text(filename, split="|"):
     with open(filename, encoding="utf-8") as f:
-        filepaths_and_text = [line.strip().split(split) for line in f]
+        filepaths_and_text = [line.strip().split(split) for line in f if int(line.strip().split(split)[1]) == 0 or int(line.strip().split(split)[1]) == 2]
     return filepaths_and_text
 
 
@@ -69,14 +69,22 @@ class TextMelCollate:
         mel_padded = torch.FloatTensor(len(batch), num_mels, max_target_len)
         mel_padded.zero_()
         output_lengths = torch.LongTensor(len(batch))
+
+        langs = torch.zeros_like(input_lengths)
+        speakers = torch.zeros((len(batch), batch[0][3].shape[0]))
+        emos = torch.zeros((len(batch), batch[0][4].shape[0]))
         for i in range(len(ids_sorted_decreasing)):
             mel = batch[ids_sorted_decreasing[i]][1]
             mel_padded[i, :, : mel.size(1)] = mel
             output_lengths[i] = mel.size(1)
 
+            langs[i] = batch[ids_sorted_decreasing[i]][2]
+            speakers[i, :] = batch[ids_sorted_decreasing[i]][3]
+            emos[i, :] = batch[ids_sorted_decreasing[i]][4]
+            
         # torch.empty is a substite for gate_padded, will be removed later when more
         # test ensures there is no regression
-        return text_padded, input_lengths, mel_padded, torch.empty([1]), output_lengths
+        return text_padded, input_lengths, mel_padded, torch.empty([1]), output_lengths, langs, speakers, emos
 
 
 class TextMelLoader(Dataset):
@@ -112,6 +120,9 @@ class TextMelLoader(Dataset):
             hparams.mel_fmin,
             hparams.mel_fmax,
         )
+        self.spk_embeds_path = hparams.spk_embeds_path
+        self.emo_embeds_path = hparams.emo_embeds_path
+        self.database_name_index = hparams.database_name_index
         random.seed(hparams.seed)
         random.shuffle(self.audiopaths_and_text)
 
@@ -123,15 +134,23 @@ class TextMelLoader(Dataset):
             audiopath_and_text (list): list of size 2
         """
         # separate filename and text (string)
-        audiopath, text = audiopath_and_text[0], audiopath_and_text[1]
+        audiopath, lid, text = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2]
+        filename = audiopath.split("/")[-1].split(".")[0]
+        database_name = audiopath.split("/")[self.database_name_index]
+
         # This text is int tensor of the input representation
         text = self.get_text(text)
         mel = self.get_mel(audiopath)
+        lang = self.get_lid(lid)
+
+        speaker = torch.Tensor(np.load(f"{self.spk_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
+        emo = torch.Tensor(np.load(f"{self.spk_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
+        
         if self.transform:
             for t in self.transform:
                 mel = t(mel)
 
-        return (text, mel)
+        return (text, mel, lang, speaker, emo)
 
     def get_mel(self, filename):
         r"""
@@ -156,12 +175,16 @@ class TextMelLoader(Dataset):
 
         return melspec
 
-    def get_text(self, text):
+    def get_text(self, text, lid):
         if self.phonetise:
             text = phonetise_text(self.cmu_phonetiser, text, word_tokenize)
 
-        text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners))
+        text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners[lid]))
         return text_norm
+
+    def get_lid(self, lid):
+        lid = torch.IntTensor([int(lid)])
+        return lid
 
     def __getitem__(self, index):
         return self.get_mel_text_pair(self.audiopaths_and_text[index])

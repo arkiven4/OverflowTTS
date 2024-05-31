@@ -63,7 +63,7 @@ class ConvReluNorm(nn.Module):
 
 
 class WN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, p_dropout=0):
+    def __init__(self, in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, emoin_channels=0, p_dropout=0):
         super().__init__()
         assert kernel_size % 2 == 1
         assert hidden_channels % 2 == 0
@@ -73,6 +73,7 @@ class WN(torch.nn.Module):
         self.dilation_rate = dilation_rate
         self.n_layers = n_layers
         self.gin_channels = gin_channels
+        self.emoin_channels = emoin_channels
         self.p_dropout = p_dropout
 
         self.in_layers = torch.nn.ModuleList()
@@ -82,6 +83,10 @@ class WN(torch.nn.Module):
         if gin_channels != 0:
             cond_layer = torch.nn.Conv1d(gin_channels, 2 * hidden_channels * n_layers, 1)
             self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
+
+        if emoin_channels != 0:
+            cond_layer2 = torch.nn.Conv1d(emoin_channels, 2 * hidden_channels * n_layers, 1)
+            self.cond_layer2 = torch.nn.utils.weight_norm(cond_layer2, name="weight")
 
         for i in range(n_layers):
             dilation = dilation_rate**i
@@ -102,12 +107,15 @@ class WN(torch.nn.Module):
             res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             self.res_skip_layers.append(res_skip_layer)
 
-    def forward(self, x, x_mask=None, g=None, **kwargs):
+    def forward(self, x, x_mask=None, g=None, emo=None, **kwargs):
         output = torch.zeros_like(x)
         n_channels_tensor = torch.IntTensor([self.hidden_channels])
 
         if g is not None:
             g = self.cond_layer(g)
+
+        if emo is not None:
+            emo = self.cond_layer2(emo)
 
         for i in range(self.n_layers):
             x_in = self.in_layers[i](x)
@@ -118,19 +126,29 @@ class WN(torch.nn.Module):
             else:
                 g_l = torch.zeros_like(x_in)
 
+            if emo is not None:
+                cond_offset = i * 2 * self.hidden_channels
+                emo_l = emo[:, cond_offset : cond_offset + 2 * self.hidden_channels, :]
+            else:
+                emo_l = torch.zeros_like(x_in)
+
             acts = fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
+            acts2 = fused_add_tanh_sigmoid_multiply(x_in, emo_l, n_channels_tensor)
 
             res_skip_acts = self.res_skip_layers[i](acts)
+            res_skip_acts2 = self.res_skip_layers[i](acts2)
             if i < self.n_layers - 1:
-                x = (x + res_skip_acts[:, : self.hidden_channels, :]) * x_mask
-                output = output + res_skip_acts[:, self.hidden_channels :, :]
+                x = (x + res_skip_acts[:, : self.hidden_channels, :] + res_skip_acts2[:, : self.hidden_channels, :]) * x_mask
+                output = output + res_skip_acts[:, self.hidden_channels :, :] + res_skip_acts2[:, self.hidden_channels :, :]
             else:
-                output = output + res_skip_acts
+                output = output + res_skip_acts + res_skip_acts2
         return output * x_mask
 
     def remove_weight_norm(self):
         if self.gin_channels != 0:
             torch.nn.utils.remove_weight_norm(self.cond_layer)
+        if self.emoin_channels != 0:
+            torch.nn.utils.remove_weight_norm(self.cond_layer2)
         for layer_in in self.in_layers:
             torch.nn.utils.remove_weight_norm(layer_in)
         for layer_skip in self.res_skip_layers:
@@ -242,6 +260,7 @@ class CouplingBlock(nn.Module):
         dilation_rate,
         n_layers,
         gin_channels=0,
+        emoin_channels=0,
         p_dropout=0,
         sigmoid_scale=True,
     ):
@@ -252,6 +271,7 @@ class CouplingBlock(nn.Module):
         self.dilation_rate = dilation_rate
         self.n_layers = n_layers
         self.gin_channels = gin_channels
+        self.emoin_channels = emoin_channels
         self.p_dropout = p_dropout
         self.sigmoid_scale = sigmoid_scale
 
@@ -265,16 +285,16 @@ class CouplingBlock(nn.Module):
         end.bias.data.zero_()
         self.end = end
 
-        self.wn = WN(in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels, p_dropout)
+        self.wn = WN(in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels, emoin_channels, p_dropout)
 
-    def forward(self, x, x_mask=None, reverse=False, g=None, **kwargs):
+    def forward(self, x, x_mask=None, reverse=False, g=None, emo=None, **kwargs):
         b, c, t = x.size()
         if x_mask is None:
             x_mask = 1
         x_0, x_1 = x[:, : self.in_channels // 2], x[:, self.in_channels // 2 :]
 
         x = self.start(x_0) * x_mask
-        x = self.wn(x, x_mask, g)
+        x = self.wn(x, x_mask, g, emo)
         out = self.end(x)
 
         z_0 = x_0

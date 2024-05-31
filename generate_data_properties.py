@@ -31,16 +31,19 @@ def parse_batch(batch):
     Args:
         batch: batch of data
     """
-    text_padded, input_lengths, mel_padded, gate_padded, output_lengths = batch
+    text_padded, input_lengths, mel_padded, gate_padded, output_lengths, langs, speakers, emos = batch
     text_padded = to_gpu(text_padded).long()
     input_lengths = to_gpu(input_lengths).long()
     max_len = torch.max(input_lengths.data).item()
     mel_padded = to_gpu(mel_padded).float()
     gate_padded = to_gpu(gate_padded).float()
     output_lengths = to_gpu(output_lengths).long()
+    langs = to_gpu(langs).long()
+    speakers = to_gpu(speakers).float()
+    emos = to_gpu(emos).float()
 
     return (
-        (text_padded, input_lengths, mel_padded, max_len, output_lengths),
+        (text_padded, input_lengths, mel_padded, max_len, output_lengths, langs, speakers, emos),
         (mel_padded, gate_padded),
     )
 
@@ -107,7 +110,7 @@ def get_data_parameters_for_flat_start(train_loader, hparams):
     start = time.perf_counter()
 
     for i, batch in enumerate(tqdm(train_loader)):
-        (text_inputs, text_lengths, mels, max_len, mel_lengths), (
+        (text_inputs, text_lengths, mels, max_len, mel_lengths, langs, speakers, emos), (
             _,
             gate_padded,
         ) = parse_batch(batch)
