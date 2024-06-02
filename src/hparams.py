@@ -59,7 +59,7 @@ def create_hparams(generate_parameters=False):
         checkpoint_dir="checkpoints",
         tensorboard_log_dir="tb_logs",
         gradient_accumulation_steps=1,
-        precision=16,
+        precision=32,
         # Placeholder to use it later while loading model
         logger=None,
         run_tests=False,
@@ -71,7 +71,7 @@ def create_hparams(generate_parameters=False):
         batch_size=4,
         load_mel_from_disk=False,
         training_files="filelists/paper2_train_filelist.txt",
-        validation_files="filelists/paper2_train_filelist.txt",
+        validation_files="filelists/paper2_val_filelist.txt",
         text_cleaners=["english_cleaners", "universal_cleaners", "universal_cleaners", "japanese_cleaners"],
         phonetise=False,
         cmu_phonetiser=CMUDict("src/phonetised_files/cmudict-0.7b.txt"),
@@ -159,7 +159,7 @@ def create_hparams(generate_parameters=False):
         ################################
         # Optimization Hyperparameters #
         ################################
-        learning_rate=1e-3,
+        learning_rate=5e-4,
         weight_decay=1e-6,
         grad_clip_thresh=40000.0,
         stochastic_weight_avg=False,
